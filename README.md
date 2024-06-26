@@ -1,2 +1,2 @@
 # NCNN
-AI inference acceleration
+AI inference acceleration.
