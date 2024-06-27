@@ -11,6 +11,9 @@ if(ncnn_FOUND)
     add_executable(resnet18_pnnx demo/resnet18_pnnx.cpp)
     target_link_libraries(resnet18_pnnx ncnn ${OpenCV_LIBS})
 
+    add_executable(resnet18 demo/resnet18.cpp)
+    target_link_libraries(resnet18 ncnn ${OpenCV_LIBS})
+
 else()
     message(WARNING "not find ncnn ,please check CMAKE_PREFIX_PATH ,and change to you ncnn install dir")
 endif()   
