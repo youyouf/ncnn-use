@@ -8,8 +8,6 @@
 #endif
 #include <stdio.h>
 #include <vector>
-#include <iostream>
-using namespace std;
 
 static int detect_resnet18(const cv::Mat& bgr, std::vector<float>& cls_scores)
 {
@@ -39,7 +37,6 @@ static int detect_resnet18(const cv::Mat& bgr, std::vector<float>& cls_scores)
     //提取出推理结果，推理结果存放在out0这个blob里
     ex.extract("out0", out);
 
-    cout << "OUT: w:"<< out.w << ", h:"<< out.h << ", d:"<< out.h << ", c:" << out.c << endl;
     cls_scores.resize(out.w);
     for (int j = 0; j < out.w; j++)
     {
