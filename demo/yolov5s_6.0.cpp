@@ -1,4 +1,3 @@
-#include "layer.h"
 #include "net.h"
 
 #if defined(USE_NCNN_SIMPLEOCV)
@@ -11,30 +10,10 @@
 #include <float.h>
 #include <stdio.h>
 #include <vector>
-#include <iostream>
 
-#define YOLOV5_V60 1 
-void pretty_print(const ncnn::Mat& m)
-{
-    for (int q=0; q<m.c; q++)
-    {
-        const float* ptr = m.channel(q);
-        for (int z=0; z<m.d; z++)
-        {
-            for (int y=0; y<m.h; y++)
-            {
-                for (int x=0; x<m.w; x++)
-                {
-                    printf("%f ", ptr[x]);
-                }
-                ptr += m.w;
-                printf("\n");
-            }
-            printf("\n");
-        }
-        printf("------------------------\n");
-    }
-}
+#define YOLOV5_V60 1 //YOLOv5 v6.0
+#define MAX_STRIDE 64
+
 struct Object
 {
     cv::Rect_<float> rect;
@@ -155,14 +134,14 @@ static void generate_proposals(const ncnn::Mat& anchors, int stride, const ncnn:
     const int num_class = feat_blob.w - 5;
 
     const int num_anchors = anchors.w / 2;
-	//遍历三个anchor
+
     for (int q = 0; q < num_anchors; q++)
     {
         const float anchor_w = anchors[q * 2];
         const float anchor_h = anchors[q * 2 + 1];
 
         const ncnn::Mat feat = feat_blob.channel(q);
-		//遍历每一个结果
+
         for (int i = 0; i < num_grid_y; i++)
         {
             for (int j = 0; j < num_grid_x; j++)
@@ -190,8 +169,7 @@ static void generate_proposals(const ncnn::Mat& anchors, int stride, const ncnn:
                         // y = x[i].sigmoid()
                         // y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i].to(x[i].device)) * self.stride[i]  # xy
                         // y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
-						//下面的代码就是前面说的对坐标的处理，
-                        //bx,by乘以下采样的倍数就对应到图片原始尺寸的坐标，bw和bh乘以anchor的宽和高就是图像原始尺度的宽高
+
                         float dx = sigmoid(featptr[0]);
                         float dy = sigmoid(featptr[1]);
                         float dw = sigmoid(featptr[2]);
@@ -229,10 +207,11 @@ static int detect_yolov5(const cv::Mat& bgr, std::vector<Object>& objects)
     ncnn::Net yolov5;
 
     yolov5.opt.use_vulkan_compute = true;
-    //加载模型的参数
-    if (yolov5.load_param("models/yolov5s-6.0.param"))
+    // yolov5.opt.use_bf16_storage = true;
+
+    if (yolov5.load_param("models/yolov5s_6.0.param"))
         exit(-1);
-    if (yolov5.load_model("models/yolov5s-6.0.bin"))
+    if (yolov5.load_model("models/yolov5s_6.0.bin"))
         exit(-1);
 
     const int target_size = 640;
@@ -241,12 +220,11 @@ static int detect_yolov5(const cv::Mat& bgr, std::vector<Object>& objects)
 
     int img_w = bgr.cols;
     int img_h = bgr.rows;
-    const int MAX_STRIDE = 64;
+
     // letterbox pad to multiple of MAX_STRIDE
     int w = img_w;
     int h = img_h;
     float scale = 1.f;
-    //判断长边，然后做对应缩放
     if (w > h)
     {
         scale = (float)target_size / w;
@@ -262,31 +240,29 @@ static int detect_yolov5(const cv::Mat& bgr, std::vector<Object>& objects)
 
     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR2RGB, img_w, img_h, w, h);
 
-    //把wpad和hpad对齐到MAX_STRIDE
-    //就是利用除法的截断原理
-    //其次就是因为要上取整所以加了MAX_STRIDE - 1
+    // pad to target_size rectangle
+    // yolov5/utils/datasets.py letterbox
     int wpad = (w + MAX_STRIDE - 1) / MAX_STRIDE * MAX_STRIDE - w;
     int hpad = (h + MAX_STRIDE - 1) / MAX_STRIDE * MAX_STRIDE - h;
     ncnn::Mat in_pad;
-    //填充
     ncnn::copy_make_border(in, in_pad, hpad / 2, hpad - hpad / 2, wpad / 2, wpad - wpad / 2, ncnn::BORDER_CONSTANT, 114.f);
-    //归一化
+
     const float norm_vals[3] = {1 / 255.f, 1 / 255.f, 1 / 255.f};
     in_pad.substract_mean_normalize(0, norm_vals);
 
     ncnn::Extractor ex = yolov5.create_extractor();
-    std::cout<<in_pad.w<<"  "<<in_pad.h<<std::endl;
+
     ex.input("images", in_pad);
 
     std::vector<Object> proposals;
 
-    
+    // anchor setting from yolov5/models/yolov5s.yaml
 
-    //对8倍下采样的输出进行提取和处理
+    // stride 8
     {
         ncnn::Mat out;
         ex.extract("output", out);
-        
+
         ncnn::Mat anchors(6);
         anchors[0] = 10.f;
         anchors[1] = 13.f;
@@ -301,11 +277,11 @@ static int detect_yolov5(const cv::Mat& bgr, std::vector<Object>& objects)
         proposals.insert(proposals.end(), objects8.begin(), objects8.end());
     }
 
-    //对16倍下采样的输出进行提取和处理
+    // stride 16
     {
         ncnn::Mat out;
-        ex.extract("392", out);
-        
+
+        ex.extract("376", out);
 
         ncnn::Mat anchors(6);
         anchors[0] = 30.f;
@@ -320,13 +296,11 @@ static int detect_yolov5(const cv::Mat& bgr, std::vector<Object>& objects)
 
         proposals.insert(proposals.end(), objects16.begin(), objects16.end());
     }
-    
-    //对32倍下采样的输出进行提取和处理
+
+    // stride 32
     {
         ncnn::Mat out;
-
-        ex.extract("409", out);
-        
+        ex.extract("401", out);
         ncnn::Mat anchors(6);
         anchors[0] = 116.f;
         anchors[1] = 90.f;
@@ -341,7 +315,7 @@ static int detect_yolov5(const cv::Mat& bgr, std::vector<Object>& objects)
         proposals.insert(proposals.end(), objects32.begin(), objects32.end());
     }
 
-    //nms前对所有bbox根据框的置信度排序
+    // sort all proposals by score from highest to lowest
     qsort_descent_inplace(proposals);
 
     // apply nms with nms_threshold
@@ -399,7 +373,7 @@ static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
         fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
                 obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
-        cv::rectangle(image, obj.rect, cv::Scalar(255, 0, 0));
+        cv::rectangle(image, obj.rect, cv::Scalar(0, 0, 255), 5);
 
         char text[256];
         sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
@@ -420,7 +394,7 @@ static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
         cv::putText(image, text, cv::Point(x, y + label_size.height),
                     cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
     }
-
+    cv::imwrite("./result.jpg", image);//保存该图片
     cv::imshow("image", image);
     cv::waitKey(0);
 }
