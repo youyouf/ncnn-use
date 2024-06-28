@@ -14,6 +14,9 @@ if(ncnn_FOUND)
     add_executable(resnet18 demo/resnet18.cpp)
     target_link_libraries(resnet18 ncnn ${OpenCV_LIBS})
 
+    add_executable(yolov5s demo/yolov5s_6.0.cpp)
+    target_link_libraries(yolov5s ncnn ${OpenCV_LIBS})
+
 else()
     message(WARNING "not find ncnn ,please check CMAKE_PREFIX_PATH ,and change to you ncnn install dir")
 endif()   
