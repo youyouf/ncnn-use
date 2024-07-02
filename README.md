@@ -12,7 +12,7 @@ ncnn 是一个为移动端和嵌入式设备优化的高性能神经网络前向
 - [4：pnnx_resnet18推理](https://github.com/youyouf/ncnn-use/blob/main/note/4.pnnx_resnet18%E6%8E%A8%E7%90%86.md)
 - [5：resnet18推理](https://github.com/youyouf/ncnn-use/blob/main/note/5.resnet18%E6%8E%A8%E7%90%86.md)
 - [6：yolov5s_6.0推理](https://github.com/youyouf/ncnn-use/blob/main/note/6.yolov5s_6.0%E6%8E%A8%E7%90%86.md)
-- [7：pnnx_yolov5s_6.0推理]([xxx](https://github.com/youyouf/ncnn-use/blob/main/note/7.pnnx_yolov5s_6.0%E6%8E%A8%E7%90%86.md))
+- [7：pnnx_yolov5s_6.0推理](https://github.com/youyouf/ncnn-use/blob/main/note/7.pnnx_yolov5s_6.0%E6%8E%A8%E7%90%86.md)
 
 逐步更新中.......
 
